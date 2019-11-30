@@ -1,0 +1,252 @@
+---
+title: "ML with R"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+#importing Libraries
+```{r cars}
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(caretEnsemble)
+library(VIM)
+#library(data.table)
+library(DataExplorer) # For initial exploratory data analysis
+```
+
+#importing Dataset
+```{r }
+data<-read.csv(file.choose(), header=T)
+```
+# Overview of the dataset
+```{r }
+head(data)
+```
+Checking Diamension of the dataset
+```{r }
+dim(data)
+```
+#checking structure of dataset and their attribute data type
+```{r }
+str(data)
+```
+#Ploting structure of the dataset
+```{r }
+plot_str(data)
+```
+# Checking missing values in the dataset
+
+```{r }
+sapply(data, function(x) sum(is.na(x)))
+```
+
+#Ploting the missing values
+```{r }
+plot_missing(data)
+```
+#Proportion analysis of Martial Status attribute in the dataset
+```{r }
+prop.table(table(data$Marital_Status))
+```
+#Proportion analysis of Age attribute in the dataset
+
+```{r }
+prop.table(table(data$Age))
+```
+#Proportion analysis of City Category attribute in the dataset
+
+
+```{r }
+prop.table(table(data$City_Category))
+```
+##Proportion analysis of tay_In_Current_City_Years attribute in the dataset
+
+```{r }
+prop.table(table(data$Stay_In_Current_City_Years))
+
+```
+#ploting the dataset throught Bar chart
+```{r }
+plot_bar(data)
+```
+# Histogram of the dataset
+
+```{r }
+plot_histogram(data)
+```
+# Data type conversion of the dataset attributes
+```{r }
+data$User_ID <- as.factor(data$User_ID)
+data$Product_ID <- as.factor(data$Product_ID)
+data$Gender <- as.factor(if_else(data$Gender == 'M', 'Male', 'Female'))
+data$Age <- as.factor(data$Age)
+data$Occupation <- as.factor(data$Occupation)
+data$City_Category <- as.factor(data$City_Category)
+data$Stay_In_Current_City_Years <- as.factor(data$Stay_In_Current_City_Years)
+data$Marital_Status <- as.factor(if_else(data$Marital_Status == 1, 'Married', 'Sin
+gle'))
+data$Product_Category_1 <- as.integer(data$Product_Category_1)
+data$Product_Category_2 <- as.integer(data$Product_Category_2)
+data$Product_Category_3 <- as.integer(data$Product_Category_3)
+data$Purchase <- as.numeric(data$Purchase)
+```
+# Dealing with Missing Values
+```{r }
+library(rpart)
+fit <- rpart(Product_Category_2 ~ User_ID + Product_ID + Age + Gender,
+data = data[!is.na(data$Product_Category_2),],
+method = "anova")
+data$Product_Category_2[is.na(data$Product_Category_2)] <-
+predict(fit, data[is.na(data$Product_Category_2),])
+fit_1 <- rpart(Product_Category_3 ~ User_ID + Product_ID + Age + Gender,
+data = data[!is.na(data$Product_Category_3),],
+method = "anova")
+data$Product_Category_3[is.na(data$Product_Category_3)] <-
+predict(fit_1, data[is.na(data$Product_Category_3),])
+plot_missing(data)
+```
+# How many unique User_IDs are there in the dataset?
+```{r }
+length(unique(data$User_ID))
+```
+# How many items did each customer purchased?
+```{r }
+Unique_UserID <- as.data.frame(table(data$User_ID))
+names(Unique_UserID) <- c("User_ID", "Customer_Purchase_Count")
+head(Unique_UserID)
+```
+
+```{r }
+new_data <- data %>%
+group_by(User_ID, Age, Gender, Occupation, City_Category, Stay_In_Current_City_Years, Marital_Status) %>%
+summarise_each(funs(mean), Product_Category_1, Product_Category_2, Product_Category_3, Purchase)
+```
+# Rename the average values accordingly
+```{r }
+colnames(new_data)[8] <- "Product_Cat_1_Avg"
+colnames(new_data)[9] <- "Product_Cat_2_Avg"
+colnames(new_data)[10] <- "Product_Cat_3_Avg"
+colnames(new_data)[11] <- "Avg_Purchase_Amount"
+```
+# Explore the age and gender variables versus the product categories and the purchase amount
+# 1. Which Age group/gender had the highest purchase by product category?
+# Product Category 1:
+```{r }
+ggplot(new_data, aes(Gender, Product_Cat_1_Avg, fill = Gender)) + geom_col(width = 0.4) + facet_wrap(~ Age) +
+labs(title = "Age Group/Gender Vs Product Category 1")
+```
+# Product Category 2:
+```{r }
+ggplot(new_data, aes(Gender, Product_Cat_2_Avg, fill = Gender)) + geom_col() + facet_wrap(~ Age)+labs(title = "Age Group/Gender Vs Product Category 2")
+```
+# Product Category 3:
+```{r }
+ggplot(new_data, aes(Gender, Product_Cat_3_Avg, fill = Gender)) + geom_col() + facet_wrap(~ Age)+labs(title = "Age Group/Gender Vs Product Category 3")
+```
+# Age group versus Average purchase amount
+```{r }
+ggplot(new_data, aes(Age, Avg_Purchase_Amount, fill = Gender)) + geom_col() + facet_wrap(~ Gender) +labs(title = "Age Group/Gender Vs Average Purchase Amount")
+```
+#Histogram of Purchase Column by Marital Status
+```{r }
+ggplot(data, aes(x = Purchase, fill = Marital_Status)) +
+  geom_histogram(bins = 75) +
+  facet_wrap(~ Marital_Status) +
+  labs(title= "Purchases Histogram by Marital Status") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+#Histogram of Purchase Column by Stay in Current City
+```{r }
+ggplot(data, aes(x = Purchase, fill = Stay_In_Current_City_Years)) +
+  geom_histogram(bins = 75) +
+  facet_wrap(~ Stay_In_Current_City_Years) +
+  labs(title= "Purchases Histogram by Stay In Current City Years") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+#Histogram of Purchase Column by City Category
+```{r }
+ggplot(data, aes(x = Purchase, fill = City_Category)) +
+  geom_histogram(bins = 75) +
+  facet_wrap(~ City_Category) +
+  labs(title= "Purchases Histogram by City Category") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+# Removing uncessary Attribute
+```{r }
+black_friday <- data %>%
+  select(-User_ID, -Product_ID)
+
+summary(black_friday)
+```
+
+```{r }
+head(black_friday)
+```
+# Data Partition
+```{r }
+set.seed(123)
+which_train <- createDataPartition(black_friday$Purchase, 
+                                   p = 0.8, 
+                                   list = FALSE) 
+friday_train <- black_friday[which_train,]
+friday_test <- black_friday[-which_train,]
+```
+
+# Linear Regression Machine Learning Model
+```{r }
+linear_train <-  train(Purchase ~ ., data = friday_train, method = "lm")
+summary(linear_train)
+```
+#Predict the test set and compute RMSE
+
+```{r }
+linear_train_forecasts <- predict(linear_train, friday_test)
+linear_RMSE <- RMSE(linear_train_forecasts, friday_test$Purchase)
+linear_RMSE
+```
+# Compute Compute R-square
+```{r }
+linear_Rsq <-  R2(linear_train_forecasts,  friday_test$Purchase)
+linear_Rsq
+```
+# Vector Machine Regression(SVM) and Setting train control
+
+```{r }
+
+ctrl_cv2 <- trainControl(method = "cv",
+                         number = 2)
+
+# Grid search
+parametersC <- data.frame(C = c(0.01, 0.1, 0.2, 0.5, 1, 5))
+```
+# Train data and Summary
+```{r }
+
+set.seed(123)
+svm_Linear <- train(Purchase ~ ., 
+                    data = friday_train, 
+                    method = "svmLinear",
+                    tuneGrid = parametersC,
+                    trControl = ctrl_cv2)
+
+
+summary(svm_Linear)
+```
+#Predict the test set and compute RMSE and Compute the prediction error, RMSE
+```{r }
+
+svm_train_forecasts <- predict(svm_Linear, friday_test)
+svm_RMSE <- RMSE(svm_train_forecasts, friday_test$Purchase)
+svm_RMSE
+```
