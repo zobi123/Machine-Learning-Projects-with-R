@@ -1,0 +1,382 @@
+---
+title: "Income Analysis(Adult Dataset)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Importing Libraries, dataset and attribute name.
+```{r }
+library(ggplot2)
+library(plyr)
+library(ROCR)
+df <- read.table('adult.data', sep = ',', fill = F, strip.white = T)
+colnames(df) <- c('age', 'workclass', 'fnlwgt', 'educatoin','educatoin_num', 'marital_status', 'occupation', 'relationship','race', 'sex', 'capital_gain', 'capital_loss', 'hours_per_week', 'native_country', 'income')
+```
+# Overview of dataset
+```{r }
+head(df)
+```
+# Structure of the dataset
+```{r }
+str(df)
+```
+# dimension of dataset
+```{r }
+dim(df)
+```
+# Removing unncessary attribute from the dataset
+```{r }
+df$educatoin <- NULL
+df$fnlwgt <- NULL
+df$relationship <- NULL
+```
+
+# histogram of age by income group
+```{r }
+ggplot(df) + aes(x=as.numeric(age), group=income, fill=income) + 
+  geom_histogram(binwidth=1, color='black')
+```
+
+# histogram of age by gender group
+```{r }
+ggplot(adult) + aes(x=as.numeric(age), group=sex, fill=sex) + 
+  geom_histogram(binwidth=1, color='black')
+```
+#The variable workclass stands for the industry in which the responding unit is employed.
+```{r }
+summary(df$workclass)
+
+```
+#Combining Different Groups
+```{r }
+levels(df$workclass)[1] <- 'Unknown'
+# combine into Government job
+df$workclass <- gsub('^Federal-gov', 'Government', df$workclass)
+df$workclass <- gsub('^Local-gov', 'Government', df$workclass)
+df$workclass <- gsub('^State-gov', 'Government', df$workclass) 
+
+# combine into Sele-Employed job
+df$workclass <- gsub('^Self-emp-inc', 'Self-Employed', df$workclass)
+df$workclass <- gsub('^Self-emp-not-inc', 'Self-Employed', adult$workclass)
+
+# combine into Other/Unknown
+df$workclass <- gsub('^Never-worked', 'Other', df$workclass)
+df$workclass <- gsub('^Without-pay', 'Other', df$workclass)
+df$workclass <- gsub('^Other', 'Other/Unknown', df$workclass)
+df$workclass <- gsub('^Unknown', 'Other/Unknown', df$workclass)
+
+df$workclass <- as.factor(df$workclass)
+```
+# barplot of job type by income group
+# get the counts by industry and income group
+```{r }
+count <- table(df[adult$workclass == 'Government',]$income)["<=50K"]
+count <- c(count, table(df[df$workclass == 'Government',]$income)[">50K"])
+count <- c(count, table(df[df$workclass == 'Other/Unknown',]$income)["<=50K"])
+count <- c(count, table(df[df$workclass == 'Other/Unknown',]$income)[">50K"])
+count <- c(count, table(df[df$workclass == 'Private',]$income)["<=50K"])
+count <- c(count, table(df[df$workclass == 'Private',]$income)[">50K"])
+count <- c(count, table(df[df$workclass == 'Self-Employed',]$income)["<=50K"])
+count <- c(count, table(df[df$workclass == 'Self-Employed',]$income)[">50K"])
+count <- as.numeric(count)
+
+# create a dataframe
+industry <- rep(levels(df$workclass), each = 2)
+income <- rep(c('<=50K', '>50K'), 4)
+df1 <- data.frame(industry, income, count)
+df1
+```
+# calculate the percentages
+```{r }
+df1 <- ddply(df1, .(industry), transform, percent = count/sum(count) * 100)
+```
+# format the labels and calculate their positions
+```{r }
+df1 <- ddply(df1, .(industry), transform, pos = (cumsum(count) - 0.5 * count))
+df1$label <- paste0(sprintf("%.0f", df$percent), "%")
+```
+# bar plot of counts by industry with in group proportions 
+```{r }
+ggplot(df1, aes(x = industry, y = count, fill = income)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(y = pos, label = label), size = 2) + 
+  ggtitle('Income by Industry')
+```
+# create a dataframe
+```{r }
+df2 <- data.frame(table(df$income, df$educatoin_num))
+names(df2) <- c('income', 'education_num', 'count')
+df2
+```
+```{r }
+# calculate the percentages
+df2 <- ddply(df2, .(education_num), transform, percent = count/sum(count) * 100)
+
+# format the labels and calculate their positions
+df2 <- ddply(df2, .(education_num), transform, pos = (cumsum(count) - 0.5 * count))
+df2$label <- paste0(sprintf("%.0f", df2$percent), "%")
+
+# remove some in group percentage to avoid overlapped text
+df2$label[which(df2$percent < 5)] <- NA
+
+# bar plot of counts by years of education with in group proportions 
+ggplot(df2, aes(x = education_num, y = count, fill = income)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(y = pos, label = label), size = 2) + 
+  ggtitle('Income Level with Years of Education')
+```
+
+```{r }
+summary(df$occupation)
+
+```
+```{r }
+levels(df$occupation)[1] <- 'Unknown'
+df$occupation <- gsub('Adm-clerical', 'White-Collar', df$occupation)
+df$occupation <- gsub('Craft-repair', 'Blue-Collar', df$occupation)
+df$occupation <- gsub('Exec-managerial', 'White-Collar', df$occupation)
+df$occupation <- gsub('Farming-fishing', 'Blue-Collar', df$occupation)
+df$occupation <- gsub('Handlers-cleaners', 'Blue-Collar', df$occupation)
+df$occupation <- gsub('Machine-op-inspct', 'Blue-Collar', df$occupation)
+df$occupation <- gsub('Other-service', 'Service', df$occupation)
+df$occupation <- gsub('Priv-house-serv', 'Service', df$occupation)
+df$occupation <- gsub('Prof-specialty', 'Professional', df$occupation)
+df$occupation <- gsub('Protective-serv', 'Service', df$occupation)
+df$occupation <- gsub('Tech-support', 'Service', df$occupation)
+df$occupation <- gsub('Transport-moving', 'Blue-Collar', df$occupation)
+df$occupation <- gsub('Unknown', 'Other/Unknown', df$occupation)
+df$occupation <- gsub('Armed-Forces', 'Other/Unknown', df$occupation)
+df$occupation <- as.factor(df$occupation)
+summary(df$occupation)
+```
+
+# create a dataframe
+```{r }
+df3 <- data.frame(table(df$income, df$occupation))
+names(df3) <- c('income', 'occupation', 'count')
+df3
+```
+# calculate the percentages and their visualization 
+```{r }
+
+df3 <- ddply(df3, .(occupation), transform, percent = count/sum(count) * 100)
+
+# format the labels and calculate their positions
+df3 <- ddply(df3, .(occupation), transform, pos = (cumsum(count) - 0.5 * count))
+df3$label <- paste0(sprintf("%.0f", df3$percent), "%")
+
+# bar plot of counts by occupation with in group proportions 
+ggplot(df3, aes(x = occupation, y = count, fill = income)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(y = pos, label = label), size = 2) + 
+  ggtitle('Income Level with Different Occupations')
+```
+
+```{r }
+summary(df$marital_status)
+```
+#marital_status is a categorical variable with 7 categories indicating the marital status of observations. In fact, it can be blocked into a few categories as well
+```{r }
+df$marital_status <- gsub('Married-AF-spouse', 'Married', df$marital_status)
+df$marital_status <- gsub('Married-civ-spouse', 'Married', df$marital_status)
+df$marital_status <- gsub('Married-spouse-absent', 'Married', df$marital_status)
+df$marital_status <- gsub('Never-married', 'Single', df$marital_status)
+df$marital_status <- as.factor(df$marital_status)
+summary(df$marital_status)
+```
+#creating a datafrom for income and martial status
+```{r }
+df4 <- data.frame(table(df$income, df$marital_status))
+names(df4) <- c('income', 'marital_status', 'count')
+head(df4)
+```
+# Visualization representation of Martial Status and transformation
+```{r }
+# calculate the percentages
+df4 <- ddply(df4, .(marital_status), transform, percent = count/sum(count) * 100)
+
+# format the labels and calculate their positions
+df4 <- ddply(df4, .(marital_status), transform, pos = (cumsum(count) - 0.5 * count))
+df4$label <- paste0(sprintf("%.0f", df4$percent), "%")
+
+# bar plot of counts by marital status with in group proportions 
+ggplot(df4, aes(x = marital_status, y = count, fill = income)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(y = pos, label = label), size = 2) + 
+  ggtitle('Income Level with Marital Status')
+
+```
+# histogram of capital_gain
+```{r }
+
+ggplot(adult) + aes(x=as.numeric(capital_gain), group=income, fill=income) + 
+  geom_histogram(bins=10, color='black') + ggtitle('Histogram of Capital Gain')
+```
+# histogram of capital_loss
+```{r }
+ggplot(adult) + aes(x=as.numeric(capital_loss), group=income, fill=income) + 
+  geom_histogram(bins=10, color='black') + ggtitle('Histogram of Capital Loss')
+```
+# percentage of observatiosn with no capital gain or loss
+
+```{r }
+sum(df$capital_gain == 0)/length(df$capital_gain)
+```
+
+#Sum of capital Los
+```{r }
+sum(df$capital_loss == 0)/length(df$capital_loss)
+```
+# Removing Capital_gain, Capital_loss, and Native_country
+```{r }
+df$capital_gain <- NULL
+df$capital_loss <- NULL
+df$native_country <- NULL
+```
+# data frame for race and their visualization
+```{r }
+df5 <- data.frame(table(df$income, df$race))
+names(df5) <- c('income', 'race', 'count')
+head(df5)
+```
+
+# Removing missing values from race variable, conversion of Race variable and visualization
+```{r }
+# calculate the percentages
+df5 <- ddply(df5, .(race), transform, percent = count/sum(count) * 100)
+
+# format the labels and calculate their positions
+df5 <- ddply(df5, .(race), transform, pos = (cumsum(count) - 0.5 * count))
+df5$label <- paste0(sprintf("%.0f", df4$percent), "%")
+
+# do not display percentage for low counts categories
+df5$label[df5$race == 'Other'] <- NA
+df5$label[df5$race == 'Amer-Indian-Eskimo'] <- NA
+
+# bar plot of counts by marital status with in group proportions 
+ggplot(df5, aes(x = race, y = count, fill = income)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(y = pos, label = label), size = 2) + 
+  ggtitle('Income Level by Race')
+```
+# Training and Test Split Dataset
+
+```{r }
+sz <- round(.8 * dim(df)[1])  # training set size
+training_set <- df[1:sz,]
+testing_set <- df[-(1:sz),]
+```
+#Logistic Regression Model
+```{r }
+m1 <- glm(income ~ ., data = training_set, family = binomial('logit'))
+summary(m1)
+```
+# confint of logistic Regression Model
+```{r }
+confint(m1)
+
+```
+#Feature Selection backward and forward Method
+```{r }
+m_full <- m1  # full model is the model just fitted
+m_null <- glm(income ~ 1, data = training_set, family = binomial('logit'))
+
+# backward selection
+step(m_full, trace = F, scope = list(lower=formula(m_null), upper=formula(m_full)),
+     direction = 'backward')
+```
+# forward Feature selection Method
+```{r }
+step(m_null, trace = F, scope = list(lower=formula(m_null), upper=formula(m_full)),
+     direction = 'forward')
+```
+# create a data frame to store information regarding deviance residuals
+```{r }
+index <- 1:dim(training_set)[1]
+dev_resid <- residuals(m1)
+income <- training_set$income
+dff <- data.frame(index, dev_resid, income)
+
+ggplot(dff, aes(x = index, y = dev_resid, color = income)) +
+  geom_point() + 
+  geom_hline(yintercept = 3, linetype = 'dashed', color = 'blue') +
+  geom_hline(yintercept = -3, linetype = 'dashed', color = 'blue')
+
+```
+# Performance Evaluation for Logistic Regression Model
+```{r }
+ prob <- predict(m1, testing_set, type = 'response')
+pred <- rep('<=50K', length(prob))
+pred[prob>=.5] <- '>50K'
+# confusion matrix 
+Confusion_Matrix <- table(pred, testing_set$income)
+Confusion_Matrix
+
+
+```
+# Random Forest Model
+```{r }
+library(randomForest)
+rf3 <- randomForest(income ~ ., data = training_set, ntree = 1000)
+rf3.pred.prob <- predict(rf3, newdata = testing_set, type = 'prob')
+rf3.pred <- predict(rf3, newdata = testing_set, type = 'class')
+# confusion matrix 
+Confusion_Matrix_RF <- table(rf3.pred, testing_set$income)
+Confusion_Matrix_RF
+```
+# Decision Tree Model
+```{r }
+library(rpart)
+dt <- rpart(income ~ ., data = training_set, method = 'class', cp = 1e-3)
+dt.pred.prob <- predict(dt, newdata = testing_set, type = 'prob')
+dt.pred <- predict(dt, newdata = testing_set, type = 'class')
+# confusion matrix 
+Confusion_Matrix_dt <- table(dt.pred, testing_set$income)
+Confusion_Matrix_dt
+```
+# Receiver Operator Characteristics perfomance evaluation
+```{r }
+# create a prediction object
+pr <- prediction(prob, testing_set$income)
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+
+# create a data frame for TP and FP rates
+dd <- data.frame(FP = prf@x.values[[1]], TP = prf@y.values[[1]])
+
+
+# CART
+pr2 <- prediction(dt.pred.prob[,2], testing_set$income)
+prf2 <- performance(pr2, measure = "tpr", x.measure = "fpr")
+dd2 <- data.frame(FP = prf2@x.values[[1]], TP = prf2@y.values[[1]])
+
+# RF
+pr3 <- prediction(rf3.pred.prob[,2], testing_set$income)
+prf3 <- performance(pr3, measure = "tpr", x.measure = "fpr")
+dd3 <- data.frame(FP = prf3@x.values[[1]], TP = prf3@y.values[[1]])
+
+
+
+# plot ROC curve for logistic regression
+g <- ggplot() + 
+  geom_line(data = dd, aes(x = FP, y = TP, color = 'Logistic Regression')) + 
+  geom_line(data = dd2, aes(x = FP, y = TP, color = 'CART')) + 
+  geom_line(data = dd3, aes(x = FP, y = TP, color = 'Random Forest')) +
+  geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1)) +
+  ggtitle('ROC Curve') + 
+  labs(x = 'False Positive Rate', y = 'True Positive Rate') 
+g +  scale_colour_manual(name = 'Classifier', values = c('Logistic Regression'='#E69F00','Random Forest'='#D55E00', 'CART'='#009E73'))
+
+```
+# Area under Curver Performance Evaluation 
+```{r }
+auc <- rbind(performance(pr, measure = 'auc')@y.values[[1]],
+             performance(pr2, measure = 'auc')@y.values[[1]],
+             performance(pr3, measure = 'auc')@y.values[[1]])
+rownames(auc) <- (c('Logistic Regression',  'CART','Random Forest'))
+colnames(auc) <- 'Area Under ROC Curve'
+round(auc, 4)
+
+```
+
